@@ -1,0 +1,54 @@
+# 2015, j.grassler@syseleven.de 
+heat_template_version: 2015-04-30
+
+description: |
+  Creates a Neutron port on an internal network and associates it with a public
+  floating IP address through a router.
+
+  *Note*: `public_net` and `internal_net` must be connected through a
+  `OS::Neutron::Router` instance. The Router must be connected to `public_net`
+  by specifying this networks UUID as part of the router's
+  `external_gateway_info` property upon creation. On the other side, it must
+  have a `OS::Neutron::RouterInterface` instance connected to `internal_net`
+  (`autostrap::network::v3` and later will create this RouterInterface
+  along with the network it creates.).
+
+parameters:
+  internal_net:
+    description: UUID of the internal network to connect the floating IP port to.
+    type: string
+  public_net:
+    description: UUID of the external network to draw floating IP address from.
+    type: string
+  security_groups:
+    type: comma_delimited_list
+    description: List of security groups to associate with this port.
+    default: []
+
+resources:
+
+  # The port associated with the floating IP address.
+
+  port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_param: internal_net }
+      security_groups: { get_param : security_groups }
+
+  floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: public_net }
+      port_id: { get_resource: port }
+
+
+outputs:
+  OS::stack_id:
+    description: The port associated with the floating IP address (can be attached to a VM).
+    value: { get_resource: port }
+  floating_ip_address:
+    description: The port's allocated floating IP address.
+    value: { get_attr: [ floating_ip, floating_ip_address ] }
+  port:
+    description: The port associated with the floating IP address (can be attached to a VM).
+    value: { get_resource: port }

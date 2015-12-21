@@ -1,0 +1,14 @@
+// Global settings
+:ascii-ids:
+:encoding: UTF-8
+:lang: en
+:toc: left
+:toclevels: 3
+:numbered:
+:sectlinks:
+
+= Heat Resources
+
+This repository contains heat resources that generate user data scripts for
+running Autostrap on cloud instances.
+

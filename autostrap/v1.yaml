@@ -1,0 +1,183 @@
+heat_template_version: 2014-10-16
+
+description: >
+  This resource generates the first-stage bootstrap script that kicks off the
+  Cloudstrap bootstrapping process. This resource's script output must be passed
+  as user_data property to any node deployed by Cloudstrap.
+
+parameters:
+  
+  additional_config:
+    description: | 
+      Specifies one or more additional repositories configuration repositories
+      to clone as a space separated string, with the individual tokens
+      formatted as follows:
+      
+      `<repository url>[#<revision>]::[[<path>][:<path> ...]]`
+
+      Specifying a revision is optional.
+
+      The paths at the end specify the files to be included in hiera.yaml and are
+      relative to the repository's root directory. You may omit the '.yaml'
+      extension (if it exists it will be stripped for inclusion in hiera.yaml).
+
+      Example: `'https://example.com/my-additional-config.git::ssh/keys.yaml git@gitlab.example.com:my-team/my-config.git::config/ssh/my_keys:bar/:config/apache'`
+    default: ''
+    type: string
+
+  extra_overrides:
+    description: Space delimited list of extra hierarchy entries to insert into hiera.yaml after the `override` entry.
+    type: string
+    default: ''
+
+  config_repo:
+    description: URL of project specific configuration repository (commonly a fork of project-config).
+    default: ''
+    type: string
+
+  config_branch:
+    description: Git branch/commit of `config_repo` to use.
+    default: master
+    type: string
+
+  global_config_repo:
+    description: URL of default configuration repository global-config.
+    default: https://github.com/autostrap/global-config.git
+    type: string
+
+  global_config_branch:
+    description: Git branch/commit of `global_config_repo` to use.
+    default: master
+    type: string
+
+  deploy_key:
+    description: SSH private key required to access repositories
+    type: string
+    hidden: true
+
+  openstackfacts_repo:
+    description: Repository URL of puppet module puppet-openstackfacts.
+    default: https://github.com/autostrap/puppet-openstackfacts.git
+    type: string
+
+  openstackfacts_branch:
+    description: Git branch/commit of `openstackfacts_repo` to use.
+    default: master
+    type: string
+
+  repodeploy_repo:
+    description: Repository URL of puppet module puppet-repodeploy.
+    default: https://github.com/autostrap/puppet-repodeploy.git
+    type: string
+
+  repodeploy_branch:
+    description: Git branch/commit of `repodeploy_repo` to use.
+    default: master
+    type: string
+
+  override_yaml:
+    description: Content for `override.yaml` (this file is inserted at the top of Hiera's hierarchy array).
+    default: ""
+    type: string
+
+  scripts_repo:
+    description: Repository URL of bootstrap-scripts.
+    default: https://github.com/autostrap/bootstrap-scripts.git
+    type: string
+
+  scripts_branch:
+    description: Git branch/commit of `scripts_repo` to use.
+    default: master
+    type: string
+
+resources:
+
+
+  bootstrap_script:
+    type: OS::Heat::MultipartMime
+    properties:
+      parts:
+        - type: text
+          config:
+            str_replace:
+              params:
+                $additional_config: { get_param: additional_config }
+                $config_repo: { get_param: config_repo }
+                $config_branch: { get_param: config_branch }
+                $deploy_key: { get_param: deploy_key }
+                $extra_overrides: { get_param: extra_overrides }
+                $openstackfacts_repo: { get_param: openstackfacts_repo }
+                $openstackfacts_branch: { get_param: openstackfacts_branch }
+                $override_yaml: { get_param: override_yaml }
+                $repodeploy_repo: { get_param: repodeploy_repo }
+                $repodeploy_branch: { get_param: repodeploy_branch }
+                $scripts_repo: { get_param: scripts_repo }
+                $scripts_branch: { get_param: scripts_branch }
+                $global_config_repo: { get_param: global_config_repo }
+                $global_config_branch: { get_param: global_config_branch }
+              template: |
+                #!/usr/bin/env bash
+                exec > /var/log/script_user_data.log 2>&1
+                set -x
+
+                export additional_config='$additional_config'
+                export extra_overrides='$extra_overrides'
+                export scripts_dir=/opt/scripts/autostrap
+                export config_dir=/opt/config/project
+                export global_config_dir=/opt/config/global
+                export scripts_repo=$scripts_repo
+                export scripts_branch=$scripts_branch
+                export config_repo=$config_repo
+                export config_branch=$config_branch
+                export openstackfacts_repo=$openstackfacts_repo
+                export openstackfacts_branch=$openstackfacts_branch
+                export repodeploy_repo=$repodeploy_repo
+                export repodeploy_branch=$repodeploy_branch
+                export global_config_repo=$global_config_repo
+                export global_config_branch=$global_config_branch
+
+                cat > /opt/override.yaml <<'EOF'
+                $override_yaml
+                EOF
+
+                deploykeypath=/root/.ssh/id_deploy
+
+
+                setup_git() {
+                  aptitude update &&
+                  aptitude install -y git &&
+
+                  mkdir -p /root/.ssh/
+                  touch $deploykeypath
+                  chmod 600 $deploykeypath
+                  cat > $deploykeypath <<'EOF'
+                $deploy_key
+                EOF
+          
+                  echo "${deploykeypath}" | ssh-keygen -y > "${deploykeypath}.pub"
+          
+                  cat > /root/.ssh/config <<EOF
+                IdentityFile $deploykeypath
+                StrictHostKeyChecking=no
+                EOF
+
+                  git clone $scripts_repo $scripts_dir &&
+                  (cd $scripts_dir ; git checkout $scripts_branch)
+                }
+          
+                check_net()
+                  {
+                  until ping -c 1 github.com; do sleep 5; done
+                  }
+
+                check_net &&
+                setup_git &&
+
+                $scripts_dir/initialize_instance
+
+                env  # log environment
+
+outputs:
+  script:
+    value: { get_attr: [ bootstrap_script, config ] }
+    description: The generated bootstrap script, ready to be passed as user_data property of `OS::Nova::Server`.

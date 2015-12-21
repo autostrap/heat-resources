@@ -1,0 +1,115 @@
+# 2015, j.grassler@syseleven.de 
+heat_template_version: 2014-10-16
+
+description: >
+  Creates a Neutron network/subnet combination, along with a security group
+  that allows all traffic from the subnet.
+
+  Notes:
+  
+    * The router specified in the `router` parameter must exist before the
+      template is instantiated.
+
+    * Any `sys11::floatport` instances connected to this network *must* have a
+      `public_net` parameter that matches the external network in the router's
+      `external_gateway_info` attribute.
+
+parameters:
+  router:
+    description: >
+     UUID of the router that acts as gateway to the external network. Each
+     tenant needs a router for each external network it uses.
+    type: string
+
+  dns_nameservers:
+    description: DNS name servers for the instances connected to the created subnet to use.
+    type: comma_delimited_list
+    default: 
+      - 37.123.105.116
+      - 37.123.105.117
+
+  ip_version:
+    description: IP protocol version to use on the created subnet.
+    type: number
+    default: 4
+
+  cidr:
+    description: Network/netmask in CIDR notation for the created subnet. This must fit the `allocation_pools` parameter.
+    type: string
+    default: 10.0.80.0/24
+
+  name:
+    description: The name for the created network.
+    type: string
+
+  allocation_pools:
+    description: > 
+      Range of IP addresses to assign to instances on the created subnet. This
+      must fit the `cidr` parameter. and is a list of hashes, just like the
+      allocation_pools property of OS::Neutron::Subnet.
+    type: json
+    default:
+      - {start: 10.0.80.10, end: 10.0.80.150}
+
+resources:
+  network:
+    type: OS::Neutron::Net
+    properties:
+      name: { get_param: name }
+
+  subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      allocation_pools: { get_param: allocation_pools }
+      dns_nameservers: { get_param: dns_nameservers }
+      cidr: { get_param: cidr }
+      ip_version: { get_param: ip_version }
+      network_id: { get_resource: network }
+      # Contrail does not support subnet names, hence the 'name' property must remain blank.
+      name:
+
+  # Create interface on the router that attaches to router_port.
+
+  router_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router: { get_param : router }
+      subnet: { get_resource: subnet }
+
+
+  security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description:
+        str_replace:
+           template: 'Allow all communication originating from network $name ($id).'
+           params:
+             $net: { get_param: name }
+             $id: { get_resource: network }
+      name:
+          str_replace:
+            template: 'allow all from $subnet (Neutron subnet $id)'
+            params:
+              $subnet:  { get_attr: [ subnet, cidr ] }
+              $id: { get_resource: subnet }
+      rules: 
+        - direction: ingress
+          remote_ip_prefix: { get_attr: [ subnet, cidr ] }
+
+
+outputs:
+  OS::stack_id:
+    description: The neutron network created.
+    value: { get_resource: network }
+  network:
+    description: The neutron network created.
+    value: { get_resource: network }
+  subnet:
+    description: The neutron subnet attached to the created network.
+    value: { get_resource: subnet }
+  cidr:
+    description: The Neutron subnet's network address in CIDR notation.
+    value: { get_attr: [ subnet, cidr ] }
+  security_group:
+    description: A Neutron security group that allows all traffic from this network.
+    value: { get_resource: security_group }

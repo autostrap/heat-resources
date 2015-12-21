@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# Generates an Openstack Heat resource registry data structure for arbitrary
+# YAML files passed on the command line
+
+echo resource_registry:
+
+for file in $*
+  do
+  resname=$(echo $file | sed -e 's/\.yaml$//' \
+                             -e 's#^\./##g' \
+                             -e 's#/#::#g')
+  resname="AS::${resname}"
+  fullpath=$(readlink -e $file)
+  echo "  ${resname}: file://${fullpath}"
+  done
