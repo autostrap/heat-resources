@@ -1,4 +1,4 @@
-.PHONY: all clean lint
+.PHONY: all clean doc lint
 
 RESOURCES := $(shell find . -name '*.yaml' | grep -v env.yaml | sed 's/\.yaml$ //')
 ADOC := $(patsubst %, %.adoc, ${RESOURCES})
@@ -7,6 +7,9 @@ HTML := site/index.html
 
 # Only include env.yaml for now, since building/checking documentation requires
 # commands that might not be present
+
+doc: ${HTML}
+
 all: env.yaml
 
 lint: ${YAML}
