@@ -29,7 +29,7 @@ index.adoc: index.template.adoc
 	for i in ${ADOC}; do echo "include::$${i}[]\n" >> index.adoc; done
 
 %.adoc: %.yaml
-	 heat2adoc -o $@ $<
+	 heat2adoc --prefix AS -o $@ $<
 
 clean:
 	rm -f ${ADOC}
