@@ -163,6 +163,11 @@ resources:
 
                   git clone $scripts_repo $scripts_dir &&
                   (cd $scripts_dir ; git checkout $scripts_branch)
+
+                  # /root/.ssh/config was only needed for cloning
+                  # bootstrap-scripts. From here on out we will use
+                  # ssh-autostrap.
+                  rm /root/.ssh/config
                 }
           
                 check_net()
