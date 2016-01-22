@@ -178,7 +178,7 @@ resources:
                 check_net &&
                 setup_git &&
 
-                $scripts_dir/initialize_instance
+                $scripts_dir/initialize_instance 2>&1 > /var/log/initialize_instance.log
 
                 env  # log environment
 
