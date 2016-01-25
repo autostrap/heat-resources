@@ -25,8 +25,8 @@ parameters:
     description: DNS name servers for the instances connected to the created subnet to use.
     type: comma_delimited_list
     default: 
-      - 37.123.105.116
-      - 37.123.105.117
+      - 84.200.69.80
+      - 84.200.70.40
 
   ip_version:
     description: IP protocol version to use on the created subnet.
